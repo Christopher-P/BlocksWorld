@@ -38,34 +38,64 @@ class Simulator():
         self.is_done = None
         self.hand = None
         self.holding = None
+        self.time = None
         self.limit = limit
 
-    def get_state(self):
-        return None
+    def get_done_state(self):
+        goals = []
+        for ind in range(self.blocks):
+            goals.append((self.alphabet(ind), self.world_size - 1, self.blocks - ind - 1))
+
+        return goals
+
+    def get_world_state(self):
+        states = []
+        for ind,val in enumerate(self.world):
+            for ind2, val2 in enumerate(val.items):
+                states.append((val2, ind,ind2))
+
+        return states
+
+    def check_done(self):
+        # Check if time limit passed
+        if self.time >= self.limit:
+            return True
+
+        # Check if goal state achieved
+        goal = self.get_done_state()
+        world = self.get_world_state()
+        if goal == world:
+            return True
+
+        # Otherwise its not done
+        return False
 
     def act(self, action):
         # Expects number
         # 1 = move left
-        if action == 1:
+        if action == 0:
             if self.hand > 0:
                 self.hand -= 1
 
         # 2 = move right
-        if action == 2:
+        if action == 1:
             if self.hand < self.world_size - 1:
                 self.hand += 1
 
         # 3 = grab
-        if action == 3:
+        if action == 2:
             if self.holding == None:
                 if self.world[self.hand].size() > 0:
                     self.holding = self.world[self.hand].pop()
 
         # 4 = release
-        if action == 4:
+        if action == 3:
             if self.holding is not None:
                 self.world[self.hand].push(self.holding)
                 self.holding = None
+        
+        if self.check_done()
+            self.is_done = true
 
         return self.obs()
 
@@ -97,6 +127,8 @@ class Simulator():
         self.hand = 0
         # clear holding
         self.holding = None
+        # Reset time
+        self.time = 0
         # generate new world
         self.gen()
 
