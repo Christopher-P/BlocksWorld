@@ -1,173 +1,207 @@
 # OpenSource BlocksWorld simulator
 # The goal is to place all the blocks on
-# the set spot with blocks from (A-top to Z-bot)
+# the set spot with blocks from (0-bot to n-top)
 
 # v0 will use random placement for blocks in the world
 # v0 will assume goal stack is right-most column
 # v0 scores off euclidean
 
-import random
 import math
+import time
+import random
 
-# http://interactivepython.org/courselib/static/pythonds/BasicDS/ImplementingaStackinPython.html
-class Stack:
-     def __init__(self):
-         self.items = []
 
-     def isEmpty(self):
-         return self.items == []
+class Simulator:
 
-     def push(self, item):
-         self.items.append(item)
-
-     def pop(self):
-         return self.items.pop()
-
-     def peek(self):
-         return self.items[len(self.items)-1]
-
-     def size(self):
-         return len(self.items)
-
-class Simulator():
-
-    def __init__(self, world_size, blocks, score, limit):
-        self.world_size = world_size
+    def __init__(self, slots, blocks, score, limit=10):
+        self.slots = slots
         self.blocks = blocks
-        self.score_function = score
-        self.is_done = None
-        self.hand = None
+        self.score_function = None
+        self.hand_location = None
         self.holding = None
-        self.time = None
+        self.start_time = None
         self.limit = limit
+        self.world = None
+        self.viewer = None
 
-    def get_done_state(self):
-        goals = []
-        for ind in range(self.blocks):
-            goals.append((self.alphabet(ind), self.world_size - 1, self.blocks - ind - 1))
+        self.colors = [(0.2, 0.2, 0.2), (0.3, 0.7, 0.6), (0.9, 0.1, 0.2)]
 
-        return goals
-
-    def get_world_state(self):
-        states = []
-        for ind,val in enumerate(self.world):
-            for ind2, val2 in enumerate(val.items):
-                states.append((val2, ind,ind2))
-
-        return states
+        return None
 
     def check_done(self):
         # Check if time limit passed
-        if self.time >= self.limit:
+        if time.time() - self.start_time >= self.limit:
             return True
 
         # Check if goal state achieved
-        goal = self.get_done_state()
-        world = self.get_world_state()
-        if goal == world:
-            return True
+        standard = list(reversed(range(0, self.blocks)))
+        for ind, block in enumerate(self.world[-1]):
+            if block != standard[ind]:
+                return False
+                break
 
-        # Otherwise its not done
-        return False
+        # Check if final world slot is empty (above wont work)
+        if len(self.world[-1]) == 0:
+            return False
+
+        return True
 
     def act(self, action):
         # Expects number
-        # 1 = move left
+        # 0 = move left
         if action == 0:
-            if self.hand > 0:
-                self.hand -= 1
+            if self.hand_location > 0:
+                self.hand_location = self.hand_location - 1
 
-        # 2 = move right
+        # 1 = move right
         if action == 1:
-            if self.hand < self.world_size - 1:
-                self.hand += 1
+            if self.hand_location < self.slots - 1:
+                self.hand_location = self.hand_location + 1
 
-        # 3 = grab
+        # 2 = grab
         if action == 2:
-            if self.holding == None:
-                if self.world[self.hand].size() > 0:
-                    self.holding = self.world[self.hand].pop()
+            if self.holding is None:
+                if len(self.world[self.hand_location]) > 0:
+                    self.holding = self.world[self.hand_location].pop(-1)
 
-        # 4 = release
+        # 3 = release
         if action == 3:
             if self.holding is not None:
-                self.world[self.hand].push(self.holding)
+                self.world[self.hand_location].append(self.holding)
                 self.holding = None
-        
-        if self.check_done()
-            self.is_done = true
 
-        return self.obs()
+        return self.get_state()
 
     def score(self):
-        states = []
-        for ind,val in enumerate(self.world):
-            for ind2, val2 in enumerate(val.items):
-                states.append((val2, ind,ind2))
-        
-        goals = []
-        for ind in range(self.blocks):
-            goals.append((self.alphabet(ind), self.world_size - 1, self.blocks - ind - 1))
-        
-        states.sort(key=lambda tup: tup[0])
-        res = 0
+        counter = 0
+        total_distance = 0.0
+        # Compute for blocks in world
+        for ind1, slot in enumerate(self.world):
+            for ind2, block in enumerate(slot):
+                # Goal state location
+                x2 = len(self.world) - 1
+                y2 = counter
 
-        for ind, val in enumerate(states):
-            res += math.sqrt(math.pow(states[ind][1] - goals[ind][1], 2)
-                           + math.pow(states[ind][2] - goals[ind][2], 2))
-        res /= self.blocks
+                total_distance += math.sqrt(math.pow(ind1 - x2, 2) + math.pow(ind2 - y2, 2))
 
-        return res
+                counter = counter + 1
 
+        # Compute for block in hand
+        # Consider block to be at 0 height
+        if self.holding is not None:
+            height = 0
+            last_slot = len(self.world) - 1
+            total_distance += math.sqrt(math.pow(self.hand_location - last_slot, 2)
+                                        + math.pow(height - self.holding, 2))
+
+        return total_distance
 
     def reset(self):
-        # reset done bool
-        self.is_done = False
-        # reset hand state
-        self.hand = 0
-        # clear holding
+        self.viewer = None
+        self.hand_location = 0
         self.holding = None
-        # Reset time
-        self.time = 0
-        # generate new world
+        self.start_time = time.time()
         self.gen()
 
-    def obs(self):
-        info = []
-        info.append(self.hand)
-        info.append(self.holding)
-        info.append(self.score())
-        info.append(self.world_state())
-        return info
+        return None
 
-    def world_state(self):
-        state = []
-        for place in self.world:
-            state.append(place.items)
-        return state
+    def get_state(self):
+        obs = list()
+        obs.append(self.hand_location)
+        obs.append(self.holding)
+        obs.append(self.world)
+
+        return obs, self.score(), self.check_done(), {}
         
     def gen(self):
-        world = None
-        world = []
+        world = list()
 
         # Create empty world
-        for size in range(self.world_size):
-            world.append(Stack())
+        for size in range(self.slots):
+            world.append(list())
 
         # Fill world with blocks
         for block in range(self.blocks):
-            location = random.randint(0, self.world_size - 1)
-            world[location].push(self.alphabet(block))
+            location = random.randint(0, self.slots - 1)
+            world[location].append(block)
 
         self.world = world
-    
-    def alphabet(self, num):
-        alph = "abcdefghijklmnopqrstuvwxyz"
-        return alph[num]
-        
-env = Simulator(5, 5, None, None)
+
+        return None
+
+    def render(self, mode='human'):
+        screen_width = 600
+        screen_height = 400
+
+        world_width = 300 * 2
+        scale = screen_width/world_width
+
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+            self.viewer = rendering.Viewer(screen_width, screen_height)
+
+            # Render each slot
+            block_width = 25
+
+            # Fill background with black
+            background = rendering.FilledPolygon([(0, 0), (0, 300), (600, 300), (600, 0)])
+            background.add_attr(rendering.Transform())
+            self.viewer.add_geom(background)
+
+            # On start
+            self.block_draws = list()
+            for ind1, slot in enumerate(self.world):
+                for ind2, block in enumerate(range(self.blocks)):
+                    p = 5
+                    p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
+                    p2 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2 + block_width)
+                    p3 = (p * (ind1 + 1) + block_width * ind1 + block_width, p * (ind2 + 1) + block_width * ind2 + block_width)
+                    p4 = (p * (ind1 + 1) + block_width * ind1 + block_width, p * (ind2 + 1) + block_width * ind2)
+                    block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
+                    # Check if block exists in state:
+                    if block in slot:
+                        block_draw.set_color(*self.colors[block])
+                    else:
+                        block_draw.set_color(1.0, 1.0, 1.0)
+                    self.block_draws.append(rendering.Transform())
+                    block_draw.add_attr(self.block_draws[-1])
+                    self.viewer.add_geom(block_draw)
+
+        # On update
+        # Moves by absolute value in pixels
+        self.block_draws[0].set_translation(150, 200)
+
+        '''
+        # Edit the pole polygon vertex
+        pole = self._pole_geom
+        l, r, t, b = -polewidth / 2, polewidth / 2, polelen - polewidth / 2, -polewidth / 2
+        pole.v = [(l, b), (l, t), (r, t), (r, b)]
+
+        x = self.state
+        cartx = x[0] * scale + screen_width / 2.0  # MIDDLE OF CART
+        self.carttrans.set_translation(cartx, carty)
+        self.poletrans.set_rotation(-x[2])
+        '''
+
+        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+
+
+
+# Params
+slots = 4
+blocks = 2
+score = None
+time_limit = 5
+
+# Create env
+env = Simulator(slots, blocks, score, time_limit)
 env.reset()
-print(env.obs())
-print(env.score())
+is_done = False
 
-
+while not is_done:
+    action = random.randint(0, 3)
+    obs, reward, done, info = env.act(action)
+    env.render()
+    is_done = done
+    time.sleep(1)
+    print(obs, is_done, reward)
