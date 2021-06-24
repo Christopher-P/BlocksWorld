@@ -142,29 +142,41 @@ class Simulator:
 
             # Render each slot
             block_width = 25
+            p = 5
 
             # Fill background with black
             background = rendering.FilledPolygon([(0, 0), (0, 300), (600, 300), (600, 0)])
             background.add_attr(rendering.Transform())
             self.viewer.add_geom(background)
 
-            # On start
-            self.block_draws = list()
+            # On start draw white squares
             for ind1, slot in enumerate(self.world):
                 for ind2, block in enumerate(range(self.blocks)):
-                    p = 5
                     p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
-                    p2 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2 + block_width)
-                    p3 = (p * (ind1 + 1) + block_width * ind1 + block_width, p * (ind2 + 1) + block_width * ind2 + block_width)
-                    p4 = (p * (ind1 + 1) + block_width * ind1 + block_width, p * (ind2 + 1) + block_width * ind2)
+                    p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
+                    p3 = ((p + block_width) * (ind1 + 1), (p + block_width) * (ind2 + 1))
+                    p4 = ((p + block_width) * (ind1 + 1), p * (ind2 + 1) + block_width * ind2)
+
+                    # Always draw white square
                     block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
-                    # Check if block exists in state:
-                    if block in slot:
-                        block_draw.set_color(*self.colors[block])
-                    else:
-                        block_draw.set_color(1.0, 1.0, 1.0)
-                    self.block_draws.append(rendering.Transform())
-                    block_draw.add_attr(self.block_draws[-1])
+                    block_draw.set_color(1.0, 1.0, 1.0)
+                    block_draw.add_attr(rendering.Transform())
+                    self.viewer.add_geom(block_draw)
+
+            # Draw other squares
+            self.block_draws = list()
+            for ind1, slot in enumerate(self.world):
+                for ind2, block in enumerate(slot):
+                    p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
+                    p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
+                    p3 = ((p + block_width) * (ind1 + 1), (p + block_width) * (ind2 + 1))
+                    p4 = ((p + block_width) * (ind1 + 1), p * (ind2 + 1) + block_width * ind2)
+
+                    block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
+                    block_draw.set_color(*self.colors[block])
+                    block_trans = rendering.Transform()
+                    block_draw.add_attr(block_trans)
+                    self.block_draws.append(block_trans)
                     self.viewer.add_geom(block_draw)
 
         # On update
@@ -186,9 +198,8 @@ class Simulator:
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
 
-
 # Params
-slots = 4
+slots = 2
 blocks = 2
 score = None
 time_limit = 5
