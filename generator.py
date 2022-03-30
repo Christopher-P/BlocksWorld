@@ -12,6 +12,9 @@ import random
 
 from gym import Env, spaces
 
+import pygame
+from pygame import gfxdraw
+
 
 class BlocksWorldEnv(Env):
 
@@ -24,7 +27,7 @@ class BlocksWorldEnv(Env):
         self.start_time = None
         self.limit = limit
         self.world = None
-        self.viewer = None
+        self.screen = None
 
         self.colors = [(0.2, 0.2, 0.2), (0.3, 0.7, 0.6), (0.9, 0.1, 0.2)]
 
@@ -64,7 +67,7 @@ class BlocksWorldEnv(Env):
 
         # Error
         else:
-            print()
+            print('Error: Invalid action sent to step !')
 
         return self._get_state()
 
@@ -77,9 +80,53 @@ class BlocksWorldEnv(Env):
 
         return None
 
+    def render_2(self, mode='human'):
+
+        block_width = 25
+        p = 5
+
+        screen_width = (block_width + p) * self.world_length + p
+        screen_height = (block_width + p) * self.block_number + p + block_width
+
+        # Create game instance
+
+        if self.screen is None:
+            pygame.init()
+            pygame.display.init()
+            self.screen = pygame.display.set_mode((screen_width, screen_height))
+
+        # Create window
+        self.surf = pygame.Surface((screen_width, screen_height))
+        self.surf.fill((255, 255, 255))
+
+        # On start draw white squares
+        for ind1, slot in enumerate(self.world):
+            for ind2, block in enumerate(range(self.block_number)):
+                p1 = (ind + 1)
+                #p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
+                #p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
+                p3 = block_width
+                p4 = block_width
+
+                # Always draw white square
+                white = (0, 0, 0)
+                rect = pygame.Rect(0, 0, 200, 200)
+                pygame.gfxdraw.box(self.surf, rect, white)
+                '''
+                block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
+                block_draw.set_color(1.0, 1.0, 1.0)
+                block_draw.add_attr(rendering.Transform())
+                self.viewer.add_geom(block_draw)
+                '''
+
+        # Render the drawn window
+        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.screen.blit(self.surf, (0, 0))
+        pygame.event.pump()
+        pygame.display.flip()
+
     def render(self, mode='human'):
-        screen_width = 600
-        screen_height = 400
+
 
         world_width = 300 * 2
         scale = screen_width/world_width
@@ -146,6 +193,7 @@ class BlocksWorldEnv(Env):
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
     def close(self):
+        self.viewer = None
         return None
 
     def _get_score(self):
@@ -229,10 +277,11 @@ def main():
     print(env.observation_space)
 
     while not is_done:
-        action = random.randint(0, 3)
+        action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
-        env.render()
+        env.render_2()
         is_done = done
+        time.sleep(0.5)
         print(obs, is_done, reward)
 
 
