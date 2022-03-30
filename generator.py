@@ -10,13 +10,15 @@ import math
 import time
 import random
 
+from gym import Env, spaces
 
-class Simulator:
 
-    def __init__(self, slots, blocks, score, limit=10):
-        self.slots = slots
-        self.blocks = blocks
-        self.score_function = None
+class BlocksWorldEnv(Env):
+
+    def __init__(self, world_length, block_number, score_type, limit=10):
+        self.world_length = world_length
+        self.block_number = block_number
+        self._get_score_function = None
         self.hand_location = None
         self.holding = None
         self.start_time = None
@@ -26,27 +28,17 @@ class Simulator:
 
         self.colors = [(0.2, 0.2, 0.2), (0.3, 0.7, 0.6), (0.9, 0.1, 0.2)]
 
+        # Open AI Gym Obs/act spaces
+        self.observation_space = spaces.Dict({"world": spaces.Box(low=0.0, high=self.block_number,
+                                                                  shape=(self.world_length, self.block_number),
+                                                                  dtype=int),
+                                              "holding": spaces.Discrete(self.block_number),
+                                              "location": spaces.Discrete(self.world_length)})
+        self.action_space = spaces.Discrete(4)
+
         return None
 
-    def check_done(self):
-        # Check if time limit passed
-        if time.time() - self.start_time >= self.limit:
-            return True
-
-        # Check if goal state achieved
-        standard = list(reversed(range(0, self.blocks)))
-        for ind, block in enumerate(self.world[-1]):
-            if block != standard[ind]:
-                return False
-                break
-
-        # Check if final world slot is empty (above wont work)
-        if len(self.world[-1]) == 0:
-            return False
-
-        return True
-
-    def act(self, action):
+    def step(self, action):
         # Expects number
         # 0 = move left
         if action == 0:
@@ -54,78 +46,34 @@ class Simulator:
                 self.hand_location = self.hand_location - 1
 
         # 1 = move right
-        if action == 1:
-            if self.hand_location < self.slots - 1:
+        elif action == 1:
+            if self.hand_location < self.world_length - 1:
                 self.hand_location = self.hand_location + 1
 
         # 2 = grab
-        if action == 2:
+        elif action == 2:
             if self.holding is None:
                 if len(self.world[self.hand_location]) > 0:
                     self.holding = self.world[self.hand_location].pop(-1)
 
         # 3 = release
-        if action == 3:
+        elif action == 3:
             if self.holding is not None:
                 self.world[self.hand_location].append(self.holding)
                 self.holding = None
 
-        return self.get_state()
+        # Error
+        else:
+            print()
 
-    def score(self):
-        counter = 0
-        total_distance = 0.0
-        # Compute for blocks in world
-        for ind1, slot in enumerate(self.world):
-            for ind2, block in enumerate(slot):
-                # Goal state location
-                x2 = len(self.world) - 1
-                y2 = counter
-
-                total_distance += math.sqrt(math.pow(ind1 - x2, 2) + math.pow(ind2 - y2, 2))
-
-                counter = counter + 1
-
-        # Compute for block in hand
-        # Consider block to be at 0 height
-        if self.holding is not None:
-            height = 0
-            last_slot = len(self.world) - 1
-            total_distance += math.sqrt(math.pow(self.hand_location - last_slot, 2)
-                                        + math.pow(height - self.holding, 2))
-
-        return total_distance
+        return self._get_state()
 
     def reset(self):
         self.viewer = None
         self.hand_location = 0
         self.holding = None
         self.start_time = time.time()
-        self.gen()
-
-        return None
-
-    def get_state(self):
-        obs = list()
-        obs.append(self.hand_location)
-        obs.append(self.holding)
-        obs.append(self.world)
-
-        return obs, self.score(), self.check_done(), {}
-        
-    def gen(self):
-        world = list()
-
-        # Create empty world
-        for size in range(self.slots):
-            world.append(list())
-
-        # Fill world with blocks
-        for block in range(self.blocks):
-            location = random.randint(0, self.slots - 1)
-            world[location].append(block)
-
-        self.world = world
+        self._generate_world()
 
         return None
 
@@ -151,7 +99,7 @@ class Simulator:
 
             # On start draw white squares
             for ind1, slot in enumerate(self.world):
-                for ind2, block in enumerate(range(self.blocks)):
+                for ind2, block in enumerate(range(self.block_number)):
                     p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
                     p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
                     p3 = ((p + block_width) * (ind1 + 1), (p + block_width) * (ind2 + 1))
@@ -197,22 +145,96 @@ class Simulator:
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
+    def close(self):
+        return None
 
-# Params
-slots = 2
-blocks = 2
-score = None
-time_limit = 5
+    def _get_score(self):
+        counter = 0
+        total_distance = 0.0
+        # Compute for blocks in world
+        for ind1, slot in enumerate(self.world):
+            for ind2, block in enumerate(slot):
+                # Goal state location
+                x2 = len(self.world) - 1
+                y2 = counter
 
-# Create env
-env = Simulator(slots, blocks, score, time_limit)
-env.reset()
-is_done = False
+                total_distance += math.sqrt(math.pow(ind1 - x2, 2) + math.pow(ind2 - y2, 2))
 
-while not is_done:
-    action = random.randint(0, 3)
-    obs, reward, done, info = env.act(action)
-    env.render()
-    is_done = done
-    time.sleep(1)
-    print(obs, is_done, reward)
+                counter = counter + 1
+
+        # Compute for block in hand
+        # Consider block to be at 0 height
+        if self.holding is not None:
+            height = 0
+            last_slot = len(self.world) - 1
+            total_distance += math.sqrt(math.pow(self.hand_location - last_slot, 2)
+                                        + math.pow(height - self.holding, 2))
+
+        return total_distance
+
+    def _get_state(self):
+        observation = dict()
+        observation['location'] = self.hand_location
+        observation['holding'] = self.holding
+        observation['world'] = self.world
+
+        return observation, self._get_score(), self._is_done(), {}
+
+    def _generate_world(self):
+        world = list()
+
+        # Create empty world
+        for size in range(self.world_length):
+            world.append(list())
+
+        # Fill world with blocks
+        for block in range(self.block_number):
+            location = random.randint(0, self.world_length - 1)
+            world[location].append(block)
+
+        self.world = world
+
+        return None
+
+    def _is_done(self):
+        # Check if time limit passed
+        if time.time() - self.start_time >= self.limit:
+            return True
+
+        # Check if goal state achieved
+        standard = list(reversed(range(0, self.block_number)))
+        for ind, block in enumerate(self.world[-1]):
+            if block != standard[ind]:
+                return False
+                break
+
+        # Check if final world slot is empty (above wont work)
+        if len(self.world[-1]) == 0:
+            return False
+
+        return True
+
+
+def main():
+    # Params
+    slots = 2
+    blocks = 2
+    score = None
+    time_limit = 5
+
+    # Create env
+    env = BlocksWorldEnv(slots, blocks, score, time_limit)
+    env.reset()
+    is_done = False
+    print(env.observation_space)
+
+    while not is_done:
+        action = random.randint(0, 3)
+        obs, reward, done, info = env.step(action)
+        env.render()
+        is_done = done
+        print(obs, is_done, reward)
+
+
+if __name__ == "__main__":
+    main()
