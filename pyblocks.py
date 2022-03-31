@@ -30,6 +30,7 @@ class BlocksWorldEnv(Env):
         self.current_tick = None
         self.world = None
         self.screen = None
+        self.surf = None
 
         # Handle color values
         self.colors_all = pygame.colordict.THECOLORS.items()
@@ -44,6 +45,7 @@ class BlocksWorldEnv(Env):
                                                                   dtype=int),
                                               "holding": spaces.Discrete(self.block_number),
                                               "location": spaces.Discrete(self.world_length)})
+        
         self.action_space = spaces.Discrete(4)
 
         return
@@ -81,8 +83,9 @@ class BlocksWorldEnv(Env):
 
         return self._get_state()
 
-    def reset(self):
-        self.viewer = None
+    def reset(self, seed=None):
+        # Seed here now
+        random.seed(seed)
         self.hand_location = 0
         self.holding = None
         self.current_tick = 0
@@ -90,7 +93,7 @@ class BlocksWorldEnv(Env):
 
         return None
 
-    def render_2(self, mode='human'):
+    def render(self, mode='human'):
         # Width of a block
         block_width = 25
         # Padding between blocks
@@ -138,7 +141,7 @@ class BlocksWorldEnv(Env):
             pygame.gfxdraw.box(self.surf, rect, self.colors[self.holding])
 
         # Draw line
-        line_x =  (block_width + p) * self.world_length + 2
+        line_x = (block_width + p) * self.world_length + 2
         pygame.gfxdraw.line(self.surf, line_x, 0, line_x, screen_height, (255, 0, 0))
 
         # Draw Goal State
@@ -160,6 +163,8 @@ class BlocksWorldEnv(Env):
         return None
 
     def close(self):
+        self.screen = None
+        self.surf = None
         return None
 
     def _get_score(self):

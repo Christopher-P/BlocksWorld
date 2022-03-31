@@ -20,7 +20,7 @@ def main():
     print(env.observation_space)
 
     while not is_done:
-        env.render_2()
+        env.render()
 
         # Select human entry or not
         if human_input:
