@@ -19,10 +19,10 @@ from pygame import gfxdraw
 
 class BlocksWorldEnv(Env):
 
-    def __init__(self, world_length, block_number, score_type, tick_limit=None):
+    def __init__(self, world_length, block_number, score_type=None, tick_limit=None):
         self.world_length = world_length
         self.block_number = block_number
-        self._get_score_function = None
+        self._get_score_function = score_type
         self.hand_location = None
         self.holding = None
         self.start_time = None
