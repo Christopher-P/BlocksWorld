@@ -1,2 +1,5 @@
 # Ignore PyCharm
 .idea/*
+
+# Ignore compile dirs
+__pycache__
