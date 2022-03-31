@@ -7,7 +7,6 @@
 # v0 scores off euclidean
 
 import math
-import time
 import random
 
 import numpy as np
@@ -87,7 +86,6 @@ class BlocksWorldEnv(Env):
         self.hand_location = 0
         self.holding = None
         self.current_tick = 0
-        self.start_time = time.time()
         self._generate_world()
 
         return None
@@ -162,7 +160,6 @@ class BlocksWorldEnv(Env):
         return None
 
     def close(self):
-        self.viewer = None
         return None
 
     def _get_score(self):
@@ -227,45 +224,3 @@ class BlocksWorldEnv(Env):
             return True
         else:
             return False
-
-
-def main():
-    # Params
-    slots = 3
-    blocks = 2
-    score = None
-    tick_limi = None
-
-    # Create env
-    env = BlocksWorldEnv(slots, blocks, score, tick_limi)
-    env.reset()
-    is_done = False
-    print(env.observation_space)
-
-    while not is_done:
-        action = env.action_space.sample()
-
-        action = input("Enter action: ")
-
-        if action == 'a':
-            action = 0
-        elif action == 'd':
-            action = 1
-        elif action == 'w':
-            action = 2
-        elif action == 's':
-            action = 3
-        else:
-            continue
-
-        print("action is: " + str(action))
-
-        obs, reward, done, info = env.step(action)
-        env.render_2()
-        is_done = done
-        time.sleep(0.5)
-        print(obs, is_done, reward)
-
-
-if __name__ == "__main__":
-    main()
