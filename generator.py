@@ -10,6 +10,8 @@ import math
 import time
 import random
 
+import numpy as np
+
 from gym import Env, spaces
 
 import pygame
@@ -18,18 +20,24 @@ from pygame import gfxdraw
 
 class BlocksWorldEnv(Env):
 
-    def __init__(self, world_length, block_number, score_type, limit=10):
+    def __init__(self, world_length, block_number, score_type, tick_limit=None):
         self.world_length = world_length
         self.block_number = block_number
         self._get_score_function = None
         self.hand_location = None
         self.holding = None
         self.start_time = None
-        self.limit = limit
+        self.tick_limit = tick_limit
+        self.current_tick = None
         self.world = None
         self.screen = None
 
-        self.colors = [(0.2, 0.2, 0.2), (0.3, 0.7, 0.6), (0.9, 0.1, 0.2)]
+        # Handle color values
+        self.colors_all = pygame.colordict.THECOLORS.items()
+        self.colors = list()
+        for name in self.colors_all:
+            if not any(char.isdigit() for char in name[0]):
+                self.colors.append(name[1])
 
         # Open AI Gym Obs/act spaces
         self.observation_space = spaces.Dict({"world": spaces.Box(low=0.0, high=self.block_number,
@@ -39,7 +47,7 @@ class BlocksWorldEnv(Env):
                                               "location": spaces.Discrete(self.world_length)})
         self.action_space = spaces.Discrete(4)
 
-        return None
+        return
 
     def step(self, action):
         # Expects number
@@ -69,27 +77,32 @@ class BlocksWorldEnv(Env):
         else:
             print('Error: Invalid action sent to step !')
 
+        # After environment updates
+        self.current_tick = self.current_tick + 1
+
         return self._get_state()
 
     def reset(self):
         self.viewer = None
         self.hand_location = 0
         self.holding = None
+        self.current_tick = 0
         self.start_time = time.time()
         self._generate_world()
 
         return None
 
     def render_2(self, mode='human'):
-
+        # Width of a block
         block_width = 25
+        # Padding between blocks
         p = 5
 
-        screen_width = (block_width + p) * self.world_length + p
+        # screen size
+        screen_width = (block_width + p) * (self.world_length + 1) + p
         screen_height = (block_width + p) * self.block_number + p + block_width
 
         # Create game instance
-
         if self.screen is None:
             pygame.init()
             pygame.display.init()
@@ -97,100 +110,56 @@ class BlocksWorldEnv(Env):
 
         # Create window
         self.surf = pygame.Surface((screen_width, screen_height))
-        self.surf.fill((255, 255, 255))
+        self.surf.fill((0, 0, 0))
 
-        # On start draw white squares
-        for ind1, slot in enumerate(self.world):
-            for ind2, block in enumerate(range(self.block_number)):
-                p1 = (ind + 1)
-                #p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
-                #p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
-                p3 = block_width
-                p4 = block_width
+        # On start draw squares
+        for x, slot in enumerate(self.world):
+            for y, block in enumerate(slot):
+                # Left pos
+                left = x * (block_width + p) + p
+                # Top pos
+                top = (self.block_number - y) * (block_width + p) + p
 
                 # Always draw white square
-                white = (0, 0, 0)
-                rect = pygame.Rect(0, 0, 200, 200)
-                pygame.gfxdraw.box(self.surf, rect, white)
-                '''
-                block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
-                block_draw.set_color(1.0, 1.0, 1.0)
-                block_draw.add_attr(rendering.Transform())
-                self.viewer.add_geom(block_draw)
-                '''
+                rect = pygame.Rect(left, top, block_width, block_width)
+                pygame.gfxdraw.box(self.surf, rect, self.colors[block])
+
+        # Draw holding hand box
+        grey = (122, 122, 122)
+        bigger = 3
+        p1 = self.hand_location * (block_width + p) + p - bigger
+        p2 = p - bigger
+        rect = pygame.Rect(p1, p2, block_width + bigger * 2, block_width + bigger * 2)
+        pygame.gfxdraw.box(self.surf, rect, grey)
+
+        # Draw block if holding
+        if self.holding is not None:
+            p1 = self.hand_location * (block_width + p) + p
+            p2 = p
+            rect = pygame.Rect(p1, p2, block_width, block_width)
+            pygame.gfxdraw.box(self.surf, rect, self.colors[self.holding])
+
+        # Draw line
+        line_x =  (block_width + p) * self.world_length + 2
+        pygame.gfxdraw.line(self.surf, line_x, 0, line_x, screen_height, (255, 0, 0))
+
+        # Draw Goal State
+        for y, block in enumerate(np.arange(self.block_number)):
+            # Left pos
+            left = self.world_length * (block_width + p) + p
+            # Top pos
+            top = (self.block_number - y) * (block_width + p) + p
+
+            # Always draw white square
+            rect = pygame.Rect(left, top, block_width, block_width)
+            pygame.gfxdraw.box(self.surf, rect, self.colors[block])
 
         # Render the drawn window
-        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.surf = pygame.transform.flip(self.surf, False, False)
         self.screen.blit(self.surf, (0, 0))
         pygame.event.pump()
         pygame.display.flip()
-
-    def render(self, mode='human'):
-
-
-        world_width = 300 * 2
-        scale = screen_width/world_width
-
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-
-            # Render each slot
-            block_width = 25
-            p = 5
-
-            # Fill background with black
-            background = rendering.FilledPolygon([(0, 0), (0, 300), (600, 300), (600, 0)])
-            background.add_attr(rendering.Transform())
-            self.viewer.add_geom(background)
-
-            # On start draw white squares
-            for ind1, slot in enumerate(self.world):
-                for ind2, block in enumerate(range(self.block_number)):
-                    p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
-                    p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
-                    p3 = ((p + block_width) * (ind1 + 1), (p + block_width) * (ind2 + 1))
-                    p4 = ((p + block_width) * (ind1 + 1), p * (ind2 + 1) + block_width * ind2)
-
-                    # Always draw white square
-                    block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
-                    block_draw.set_color(1.0, 1.0, 1.0)
-                    block_draw.add_attr(rendering.Transform())
-                    self.viewer.add_geom(block_draw)
-
-            # Draw other squares
-            self.block_draws = list()
-            for ind1, slot in enumerate(self.world):
-                for ind2, block in enumerate(slot):
-                    p1 = (p * (ind1 + 1) + block_width * ind1, p * (ind2 + 1) + block_width * ind2)
-                    p2 = (p * (ind1 + 1) + block_width * ind1, (p + block_width) * (ind2 + 1))
-                    p3 = ((p + block_width) * (ind1 + 1), (p + block_width) * (ind2 + 1))
-                    p4 = ((p + block_width) * (ind1 + 1), p * (ind2 + 1) + block_width * ind2)
-
-                    block_draw = rendering.FilledPolygon([p1, p2, p3, p4])
-                    block_draw.set_color(*self.colors[block])
-                    block_trans = rendering.Transform()
-                    block_draw.add_attr(block_trans)
-                    self.block_draws.append(block_trans)
-                    self.viewer.add_geom(block_draw)
-
-        # On update
-        # Moves by absolute value in pixels
-        self.block_draws[0].set_translation(150, 200)
-
-        '''
-        # Edit the pole polygon vertex
-        pole = self._pole_geom
-        l, r, t, b = -polewidth / 2, polewidth / 2, polelen - polewidth / 2, -polewidth / 2
-        pole.v = [(l, b), (l, t), (r, t), (r, b)]
-
-        x = self.state
-        cartx = x[0] * scale + screen_width / 2.0  # MIDDLE OF CART
-        self.carttrans.set_translation(cartx, carty)
-        self.poletrans.set_rotation(-x[2])
-        '''
-
-        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+        return None
 
     def close(self):
         self.viewer = None
@@ -211,9 +180,9 @@ class BlocksWorldEnv(Env):
                 counter = counter + 1
 
         # Compute for block in hand
-        # Consider block to be at 0 height
+        # Consider block to be at highest point
         if self.holding is not None:
-            height = 0
+            height = self.block_number
             last_slot = len(self.world) - 1
             total_distance += math.sqrt(math.pow(self.hand_location - last_slot, 2)
                                         + math.pow(height - self.holding, 2))
@@ -245,39 +214,52 @@ class BlocksWorldEnv(Env):
         return None
 
     def _is_done(self):
-        # Check if time limit passed
-        if time.time() - self.start_time >= self.limit:
-            return True
-
-        # Check if goal state achieved
-        standard = list(reversed(range(0, self.block_number)))
-        for ind, block in enumerate(self.world[-1]):
-            if block != standard[ind]:
+        if self.tick_limit is not None:
+            if self.current_tick > self.tick_limit:
                 return False
-                break
 
-        # Check if final world slot is empty (above wont work)
-        if len(self.world[-1]) == 0:
+        # Determine states
+        goal_state = np.arange(0, self.block_number)
+        current_state = np.asarray(self.world[-1])
+
+        # Check if all the blocks are stacked correctly
+        if np.array_equal(goal_state, current_state):
+            return True
+        else:
             return False
-
-        return True
 
 
 def main():
     # Params
-    slots = 2
+    slots = 3
     blocks = 2
     score = None
-    time_limit = 5
+    tick_limi = None
 
     # Create env
-    env = BlocksWorldEnv(slots, blocks, score, time_limit)
+    env = BlocksWorldEnv(slots, blocks, score, tick_limi)
     env.reset()
     is_done = False
     print(env.observation_space)
 
     while not is_done:
         action = env.action_space.sample()
+
+        action = input("Enter action: ")
+
+        if action == 'a':
+            action = 0
+        elif action == 'd':
+            action = 1
+        elif action == 'w':
+            action = 2
+        elif action == 's':
+            action = 3
+        else:
+            continue
+
+        print("action is: " + str(action))
+
         obs, reward, done, info = env.step(action)
         env.render_2()
         is_done = done
