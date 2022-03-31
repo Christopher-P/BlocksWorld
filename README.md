@@ -2,4 +2,7 @@
 
 Creates a BlocksWorld simulator or problem generator!
 
-<img src="video_example.mp4" width="800"/>
+This project utilizes openaigym API for consistent access.
+
+![BlocksWorld](video_example.gif)
+
