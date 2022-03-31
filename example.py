@@ -1,5 +1,3 @@
-import time
-
 from pyblocks import BlocksWorldEnv
 
 
@@ -14,12 +12,12 @@ def main():
     human_input = False
 
     # Create env
-    env = BlocksWorldEnv(slots, blocks, score, tick_limit)
+    env = BlocksWorldEnv(slots, blocks)
     env.reset()
-    is_done = False
-    print(env.observation_space)
+    done = False
 
-    while not is_done:
+    while not done:
+        # Draw Environment
         env.render()
 
         # Select human entry or not
@@ -38,10 +36,9 @@ def main():
         else:
             action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
+        print(obs, reward, done, info)
 
-        is_done = done
-        time.sleep(0.2)
-        print(obs, is_done, reward)
+    return None
 
 
 if __name__ == "__main__":

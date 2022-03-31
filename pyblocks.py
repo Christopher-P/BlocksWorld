@@ -45,7 +45,7 @@ class BlocksWorldEnv(Env):
                                                                   dtype=int),
                                               "holding": spaces.Discrete(self.block_number),
                                               "location": spaces.Discrete(self.world_length)})
-        
+
         self.action_space = spaces.Discrete(4)
 
         return
