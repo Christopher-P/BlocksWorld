@@ -9,7 +9,7 @@ def main():
     tick_limit = None
 
     # Example params
-    human_input = False
+    human_input = True
 
     # Create env
     env = BlocksWorldEnv(slots, blocks)

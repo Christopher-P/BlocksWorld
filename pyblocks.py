@@ -65,13 +65,19 @@ class BlocksWorldEnv(Env):
         # 2 = grab
         elif action == 2:
             if self.holding is None:
-                if len(self.world[self.hand_location]) > 0:
-                    self.holding = self.world[self.hand_location].pop(-1)
+                # Check for non-zero spots in hand location of world
+                top_block_ind = (self.world[self.hand_location] != 0).argmin() - 1
+                if top_block_ind >= 0:
+                    top_block = self.world[self.hand_location][top_block_ind]
+                    self.holding = top_block
+                    self.world[self.hand_location][top_block_ind] = 0
 
         # 3 = release
         elif action == 3:
             if self.holding is not None:
-                self.world[self.hand_location].append(self.holding)
+                # Theres always a spot to drop so no check needed
+                top_block_ind = (self.world[self.hand_location] != 0).argmin()
+                self.world[self.hand_location][top_block_ind] = self.holding
                 self.holding = None
 
         # Error
@@ -116,6 +122,8 @@ class BlocksWorldEnv(Env):
         # On start draw squares
         for x, slot in enumerate(self.world):
             for y, block in enumerate(slot):
+                if block == 0:
+                    continue
                 # Left pos
                 left = x * (block_width + p) + p
                 # Top pos
@@ -145,7 +153,7 @@ class BlocksWorldEnv(Env):
         pygame.gfxdraw.line(self.surf, line_x, 0, line_x, screen_height, (255, 0, 0))
 
         # Draw Goal State
-        for y, block in enumerate(np.arange(self.block_number)):
+        for y, block in enumerate(np.arange(1, self.block_number + 1)):
             # Left pos
             left = self.world_length * (block_width + p) + p
             # Top pos
@@ -173,6 +181,10 @@ class BlocksWorldEnv(Env):
         # Compute for blocks in world
         for ind1, slot in enumerate(self.world):
             for ind2, block in enumerate(slot):
+                # Dont count empty spaces
+                if block == 0:
+                    continue
+
                 # Goal state location
                 x2 = len(self.world) - 1
                 y2 = counter
@@ -200,16 +212,21 @@ class BlocksWorldEnv(Env):
         return observation, self._get_score(), self._is_done(), {}
 
     def _generate_world(self):
-        world = list()
+        # Create M x N world (slots, blocks)
+        world = np.zeros((self.world_length, self.block_number), dtype=int)
 
-        # Create empty world
-        for size in range(self.world_length):
-            world.append(list())
+        # Randomly shuffle blocks
+        shuffled_blocks = np.arange(1, self.block_number + 1, dtype=int)
+        np.random.shuffle(shuffled_blocks)
 
         # Fill world with blocks
-        for block in range(self.block_number):
+        for block in shuffled_blocks:
+            # Randomly select slot
             location = random.randint(0, self.world_length - 1)
-            world[location].append(block)
+
+            # Put block in lowest position in slot
+            pos = (world[location] != 0).argmin()
+            world[location][pos] = block
 
         self.world = world
 
@@ -221,8 +238,8 @@ class BlocksWorldEnv(Env):
                 return False
 
         # Determine states
-        goal_state = np.arange(0, self.block_number)
-        current_state = np.asarray(self.world[-1])
+        goal_state = np.arange(1, self.block_number + 1)
+        current_state = self.world[-1]
 
         # Check if all the blocks are stacked correctly
         if np.array_equal(goal_state, current_state):
